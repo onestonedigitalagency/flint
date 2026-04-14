@@ -144,10 +144,10 @@ const SignInForm = () => {
               autoComplete="current-password"
               labelRight={
                 <Link
-                  href="#"
+                  href="/forgot-password"
                   className="text-[12px] text-violet-400/70 hover:text-violet-400 transition-colors"
                 >
-                  Forgot?
+                  Forgot password?
                 </Link>
               }
             />

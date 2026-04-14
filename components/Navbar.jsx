@@ -39,15 +39,13 @@ const Navbar = () => {
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-[60px]">
-          {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group">
-           
+            
             <span className="text-[20px] font-semibold tracking-wide text-white/90">
               FLINT
             </span>
           </Link>
 
-          {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link
@@ -60,7 +58,6 @@ const Navbar = () => {
             ))}
           </div>
 
-          {/* Auth Actions */}
           <div className="hidden md:flex items-center gap-2">
             <Link
               href={isSignIn ? "/signup" : "/signin"}
@@ -76,7 +73,6 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Mobile Toggle */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
             className="md:hidden p-2 -mr-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all"
@@ -90,23 +86,14 @@ const Navbar = () => {
               strokeWidth="1.5"
             >
               {mobileOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 9h16.5m-16.5 6.75h16.5"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
               )}
             </svg>
           </button>
         </div>
 
-        {/* Mobile Menu */}
         <div
           className={`md:hidden overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
             mobileOpen ? "max-h-[400px] pb-4" : "max-h-0"
@@ -123,16 +110,10 @@ const Navbar = () => {
               </Link>
             ))}
             <div className="pt-3 mt-2 border-t border-white/[0.06] space-y-2">
-              <Link
-                href="/signin"
-                className="block px-3 py-2.5 text-[13px] text-gray-400 hover:text-white hover:bg-white/[0.04] rounded-lg transition-all"
-              >
+              <Link href="/signin" className="block px-3 py-2.5 text-[13px] text-gray-400 hover:text-white hover:bg-white/[0.04] rounded-lg transition-all">
                 Sign in
               </Link>
-              <Link
-                href="/signup"
-                className="block px-3 py-2.5 text-[13px] font-medium text-center rounded-lg bg-violet-600 text-white"
-              >
+              <Link href="/signup" className="block px-3 py-2.5 text-[13px] font-medium text-center rounded-lg bg-violet-600 text-white">
                 Get started free
               </Link>
             </div>
