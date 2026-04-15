@@ -88,3 +88,25 @@
 }
 
 @keyframes 
+float-3 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(10px, -15px) rotate(1deg); }
+  66% { transform: translate(-15px, 10px) rotate(-1deg); }
+}
+  
+@theme inline {
+  --font-barlow: var(--font-barlow);
+  --font-instrument: var(--font-instrument);
+
+  --color-flint-offwhite: #f8f8f8;
+  --color-flint-dark: #171717;
+
+  --radius-flint: 2px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-barlow), sans-serif;
+}
+

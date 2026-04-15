@@ -1,28 +1,35 @@
-// src/app/layout.js
-import { Inter } from "next/font/google";
+
+import type { Metadata } from "next";
+import { Barlow, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const barlow = Barlow({
+  variable: "--font-barlow",
   subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
+  weight: ["300", "400", "500", "600", "700"],
 });
 
-export const metadata = {
-  title: "FLINT — Build Faster, Ship Smarter",
-  description:
-    "The next-generation development platform. Build, deploy, and scale your applications with confidence.",
-  icons: { icon: "/favicon.ico" },
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["italic"],
+});
+
+export const metadata: Metadata = {
+  title: "Flint - Video Agency",
+  description: "Agency that makes your videos & reels viral",
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body
-        className={`${inter.variable} font-sans antialiased bg-[#09090f] text-white`}
-      >
-        {children}
-      </body>
+
+    <html
+      lang="en"
+      className={`${barlow.variable} ${instrumentSerif.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">{children}</body>
+
     </html>
   );
 }

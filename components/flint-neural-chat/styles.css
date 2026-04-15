@@ -1,0 +1,39 @@
+.modern-floating-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent; /* Firefox */
+  transition: scrollbar-color 0.3s ease;
+}
+
+.modern-floating-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.modern-floating-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.modern-floating-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0);
+  border-radius: 20px;
+  border: 1.5px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.3s ease;
+}
+
+/* Show scrollbar thumb when the container is being hovered or has the 'is-scrolling' class */
+.modern-floating-scrollbar:hover::-webkit-scrollbar-thumb,
+.modern-floating-scrollbar.is-scrolling::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.12);
+  border: 1.5px solid transparent;
+}
+
+/* Increase contrast slightly on thumb hover */
+.modern-floating-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.chat-fade-mask {
+  mask-image: linear-gradient(to bottom, transparent 0%, transparent 25%, black 45%, black 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, transparent 25%, black 45%, black 100%);
+}
