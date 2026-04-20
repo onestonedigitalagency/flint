@@ -1,12 +1,13 @@
-// src/components/SignInForm.jsx
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import InputField from "./InputField";
 import SocialButtons from "./SocialButtons";
 
 const SignInForm = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -31,6 +32,7 @@ const SignInForm = () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1800));
       console.log("Sign In:", formData);
+      router.push("/workspace");
     } catch {
       setError("Invalid email or password. Please try again.");
     } finally {

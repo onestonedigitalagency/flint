@@ -7,12 +7,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
  
 const PLACEHOLDERS = [
-  "Generate website with HextaUI",
-  "Create a new project with Next.js",
-  "What is the meaning of life?",
-  "What is the best way to learn React?",
-  "How to cook a delicious meal?",
-  "Summarize this article",
+  "Analyze my pricing schema...",
+  "Deploy agent to production...",
+  "Book a demo session...",
+  "Initialize agent on domain...",
+  "Update knowledge base context...",
+  "Check system latency...",
 ];
 
 interface AIChatInputProps {
