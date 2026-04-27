@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import InputField from "./InputField";
 import SocialButtons from "./SocialButtons";
+import { api } from "@/lib/api";
 
 const SignInForm = () => {
   const router = useRouter();
@@ -30,11 +31,15 @@ const SignInForm = () => {
     setIsLoading(true);
     setError("");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1800));
-      console.log("Sign In:", formData);
+      const data = await api.post("/auth/login", {
+        username: formData.email,
+        password: formData.password,
+      }, true);
+      
+      localStorage.setItem("token", data.access_token);
       router.push("/workspace");
-    } catch {
-      setError("Invalid email or password. Please try again.");
+    } catch (err) {
+      setError(err.message || "Invalid email or password. Please try again.");
     } finally {
       setIsLoading(false);
     }

@@ -3,11 +3,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import InputField from "./InputField";
 import SocialButtons from "./SocialButtons";
 import PasswordStrength from "./PasswordStrength";
+import { api } from "@/lib/api";
 
 const SignUpForm = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -54,10 +57,15 @@ const SignUpForm = () => {
     setIsLoading(true);
     setError("");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      console.log("Sign Up:", formData);
-    } catch {
-      setError("An error occurred. Please try again.");
+      await api.post("/auth/signup", {
+        email: formData.email,
+        password: formData.password,
+        full_name: formData.fullName,
+      });
+      // After signup, redirect to signin
+      router.push("/signin");
+    } catch (err) {
+      setError(err.message || "An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }

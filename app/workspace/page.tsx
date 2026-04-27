@@ -1,5 +1,7 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api';
 import { FlintChatOverlay, FlintChatTrigger, Message } from '@/components/flint-neural-chat/FlintChat';/* ─────────────────────────────────────────────────────────────
    AgentDeploy – Setup Workspace  (Light, Precision-Editorial)
    Route: /workspace
@@ -376,8 +378,29 @@ function DeploymentView({ setIsChatOpen, sandboxLogs, setSandboxLogs }: Deployme
 }
 
 export default function WorkspacePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ email: string, full_name?: string } | null>(null);
   const [activeStage, setActiveStage] = React.useState('Analysis');
   const [expandedCard, setExpandedCard] = React.useState<string | null>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        router.push("/signin");
+        return;
+      }
+      try {
+        const userData = await api.get("/auth/me");
+        setUser(userData);
+      } catch (err) {
+        console.error("Auth error:", err);
+        localStorage.removeItem("token");
+        router.push("/signin");
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   const [isChatOpen, setIsChatOpen] = React.useState(false);
   const [isRecording, setIsRecording] = React.useState(false);
@@ -2001,14 +2024,19 @@ export default function WorkspacePage() {
             <div className="ws-topbar-right">
               <button className="ws-topbar-docs">Docs</button>
               <div className="ws-divider" />
-              <button className="ws-icon-btn">
-                <span className="material-symbols-outlined">notifications</span>
-              </button>
-              <img
-                className="ws-avatar"
-                alt="User"
-                src="https://i.pravatar.cc/64?img=12"
-              />
+              <div className="flex items-center gap-3 pr-2">
+                <div className="text-right hidden sm:block">
+                  <p className="text-[12px] font-semibold text-gray-800 leading-none">{user?.full_name || 'User'}</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{user?.email}</p>
+                </div>
+                <img
+                  className="ws-avatar"
+                  alt="User"
+                  src={`https://ui-avatars.com/api/?name=${user?.full_name || 'U'}&background=4d44e3&color=fff`}
+                  onClick={() => api.logout()}
+                  title="Logout"
+                />
+              </div>
             </div>
           </header>
 
