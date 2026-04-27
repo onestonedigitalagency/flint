@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { AnimatePresence } from "motion/react";
+import Link from "next/link";
+import { AnimatePresence } from "framer-motion";
 import { FlintChatOverlay, FlintChatTrigger, Message } from "@/components/flint-neural-chat";
+import { ContactModal } from "@/components/ContactModal";
 
 export default function Home() {
+  const [isContactOpen, setIsContactOpen] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -59,9 +62,20 @@ export default function Home() {
         <div className="text-xl font-bold tracking-tighter md:text-2xl uppercase">
           FLINT
         </div>
-        <button className="rounded-[2px] bg-flint-offwhite px-5 py-2 text-xs font-medium text-flint-dark transition-all hover:bg-white md:px-7 md:py-3 md:text-sm">
-          Let's Talk
-        </button>
+        <div className="flex items-center gap-4">
+          <Link 
+            href="/signin" 
+            className="text-[11px] font-medium uppercase tracking-widest text-white/70 transition-all hover:text-white md:text-xs"
+          >
+            Sign In
+          </Link>
+          <button 
+            onClick={() => setIsContactOpen(true)}
+            className="rounded-[2px] bg-white px-5 py-2 text-[11px] font-black uppercase tracking-widest text-black transition-all hover:bg-white/90 md:px-7 md:py-3 md:text-xs"
+          >
+            Let's Talk
+          </button>
+        </div>
       </nav>
 
       {/* Welcome Experience */}
@@ -82,6 +96,12 @@ export default function Home() {
               Convert your business into an AI agent
             </p>
           </div>
+          <Link 
+            href="/signup" 
+            className="inline-block rounded-[2px] border border-white/20 bg-white/5 px-8 py-4 text-xs font-medium uppercase tracking-[0.2em] text-white transition-all hover:bg-white hover:text-black"
+          >
+            Get Started
+          </Link>
         </div>
       </div>
 
@@ -97,6 +117,12 @@ export default function Home() {
         onToggleRecording={toggleRecording}
         onSendMessage={handleSend}
         onVoiceDetected={setVoiceDetected}
+      />
+
+      {/* Contact Bottom Sheet */}
+      <ContactModal 
+        isOpen={isContactOpen} 
+        onClose={() => setIsContactOpen(false)} 
       />
     </main>
   );

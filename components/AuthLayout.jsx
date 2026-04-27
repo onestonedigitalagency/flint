@@ -1,42 +1,53 @@
-// src/components/AuthLayout.jsx
-import Navbar from "./Navbar";
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { LandingNavbar } from "./LandingNavbar";
+import { ContactModal } from "./ContactModal";
 
 const AuthLayout = ({ children }) => {
+  const [isContactOpen, setIsContactOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-[#09090f] relative">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-25%] left-[50%] translate-x-[-50%] w-[800px] h-[600px] rounded-full bg-violet-600/[0.05] blur-[150px] animate-float-1" />
-        <div className="absolute top-[20%] left-[-10%] w-[400px] h-[400px] rounded-full bg-indigo-500/[0.03] blur-[120px] animate-float-2" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-purple-600/[0.03] blur-[120px] animate-float-3" />
-        <div className="absolute inset-0 grid-pattern animate-pulse-subtle" />
-        <div className="absolute inset-0 noise-bg" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,transparent_0%,#09090f_100%)]" />
+    <div className="relative min-h-screen overflow-hidden bg-black font-barlow text-white selection:bg-white selection:text-black">
+      {/* Cinematic Background */}
+      <div className="absolute inset-0 z-0">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="h-full w-full object-cover opacity-20 grayscale"
+        >
+          <source
+            src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260306_074215_04640ca7-042c-45d6-bb56-58b1e8a42489.mp4"
+            type="video/mp4"
+          />
+        </video>
+        <div className="absolute inset-0 bg-black/60" />
       </div>
 
-      <Navbar />
+      {/* Navigation */}
+      <LandingNavbar onTalkClick={() => setIsContactOpen(true)} />
 
-      <main className="relative z-10 flex items-center justify-center min-h-[calc(100vh-60px)] px-4 py-10 sm:py-16">
-        <div className="w-full max-w-[420px] animate-fade-in-up">{children}</div>
+      {/* Main Content (Centered) */}
+      <main className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 pb-12">
+        <div className="w-full max-w-[400px]">
+          {children}
+        </div>
       </main>
 
-      <footer className="relative z-10 border-t border-white/[0.04]">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                </svg>
-              </div>
-              <span className="text-[11px] text-gray-600">© 2024 FLINT Technologies, Inc.</span>
-            </div>
-            <div className="flex items-center gap-5">
-              {["Privacy", "Terms", "Security", "Status"].map((link) => (
-                <a key={link} href="#" className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors">{link}</a>
-              ))}
-            </div>
-          </div>
-        </div>
+      {/* Contact Modal */}
+      <ContactModal 
+        isOpen={isContactOpen} 
+        onClose={() => setIsContactOpen(false)} 
+      />
+
+      {/* Subtle Footer */}
+      <footer className="fixed bottom-12 left-0 right-0 z-10 text-center">
+        <p className="text-[10px] uppercase tracking-[0.8em] text-white/10">
+          ESTABLISHED 2024 • THE ANTI-HALLUCINATION PROTOCOL
+        </p>
       </footer>
     </div>
   );
