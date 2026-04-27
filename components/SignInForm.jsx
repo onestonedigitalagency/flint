@@ -43,6 +43,8 @@ const SignInForm = () => {
     }
   };
 
+  const canSubmit = formData.email.trim() && formData.password.length > 0;
+
   return (
     <div className="animate-fade-in space-y-12">
       {/* Header */}
@@ -96,8 +98,8 @@ const SignInForm = () => {
 
         <button
           type="submit"
-          disabled={isLoading}
-          className="group relative w-full overflow-hidden bg-white py-6 text-xs font-black uppercase tracking-[0.3em] text-black transition-all hover:bg-white/90 active:scale-[0.98] disabled:opacity-50"
+          disabled={isLoading || !canSubmit}
+          className="group relative w-full overflow-hidden bg-white py-6 text-xs font-black uppercase tracking-[0.3em] text-black transition-all hover:bg-white/90 active:scale-[0.98] disabled:opacity-20 disabled:cursor-not-allowed"
         >
           <span className={isLoading ? "opacity-0" : "opacity-100"}>
             Authorize Access
