@@ -2,7 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { FlintChatOverlay, FlintChatTrigger, Message } from '@/components/flint-neural-chat/FlintChat';/* ─────────────────────────────────────────────────────────────
+import { FlintChatOverlay, FlintChatTrigger, Message } from '@/components/flint-neural-chat/FlintChat';
+import CreateBusinessModal from '@/components/CreateBusinessModal';
+
+/* ─────────────────────────────────────────────────────────────
    AgentDeploy – Setup Workspace  (Light, Precision-Editorial)
    Route: /workspace
    Fonts: Space Grotesk (headline) + Inter (body) loaded inline
@@ -101,15 +104,21 @@ interface DeploymentViewProps {
   setIsChatOpen: (isOpen: boolean) => void;
   sandboxLogs: SandboxLog[];
   setSandboxLogs: React.Dispatch<React.SetStateAction<SandboxLog[]>>;
+  embedCode?: string;
+  apiCode?: string;
+  reactCode?: string;
+  agentId?: string;
+  businessName?: string;
+  agentStatus?: string;
 }
 
-function DeploymentView({ setIsChatOpen, sandboxLogs, setSandboxLogs }: DeploymentViewProps) {
+function DeploymentView({ setIsChatOpen, sandboxLogs, setSandboxLogs, embedCode, apiCode, reactCode, agentId, businessName, agentStatus }: DeploymentViewProps) {
   const [activeCodeTab, setActiveCodeTab] = React.useState<'embed' | 'api' | 'react'>('embed');
   const [copiedTab, setCopiedTab] = React.useState<string | null>(null);
   const [isSandboxRunning, setIsSandboxRunning] = React.useState(false);
-  const [targetDomain, setTargetDomain] = React.useState('yourwebsite.com');
+  const [targetDomain, setTargetDomain] = React.useState(businessName ? `${businessName.toLowerCase().replace(/\s+/g, '')}.com` : 'yourwebsite.com');
 
-  const codeMap = { embed: EMBED_CODE, api: API_CODE, react: REACT_CODE };
+  const codeMap = { embed: embedCode || EMBED_CODE, api: apiCode || API_CODE, react: reactCode || REACT_CODE };
 
   const handleCopy = (tab: string) => {
     navigator.clipboard.writeText(codeMap[tab as keyof typeof codeMap]);
@@ -142,13 +151,20 @@ function DeploymentView({ setIsChatOpen, sandboxLogs, setSandboxLogs }: Deployme
         <div className="dp-card dp-preview-card">
           <div className="dp-card-header">
             <div>
-              <div className="dp-card-title">Agent Preview</div>
+              <div className="dp-card-title">{businessName ? `${businessName} — Agent Preview` : 'Agent Preview'}</div>
               <div className="dp-card-subtitle">Preview how your agent appears on your website.</div>
             </div>
-            <div className="dp-live-badge">
-              <span className="dp-live-dot" />
-              Sandbox Mode
-            </div>
+            {agentStatus === 'live' ? (
+              <div className="dp-live-badge" style={{ background: '#dcfce7', color: '#166534' }}>
+                <span className="dp-live-dot" style={{ background: '#16a34a' }} />
+                Live
+              </div>
+            ) : (
+              <div className="dp-live-badge">
+                <span className="dp-live-dot" />
+                Sandbox Mode
+              </div>
+            )}
           </div>
 
           {/* Browser Chrome Frame */}
@@ -377,9 +393,34 @@ function DeploymentView({ setIsChatOpen, sandboxLogs, setSandboxLogs }: Deployme
   );
 }
 
+interface Business {
+  id: string;
+  name: string;
+  agent_id: string;
+  agent_status: string;
+  website_url?: string;
+  bot_name?: string;
+  category?: string;
+  onboarding_step: number;
+  onboarding_completed: boolean;
+}
+
+interface VaultEntry {
+  id: string;
+  key_name: string;
+  connection_status: string;
+}
+
 export default function WorkspacePage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ email: string, full_name?: string } | null>(null);
+  const [user, setUser] = useState<{ email: string, full_name?: string, email_verified?: boolean } | null>(null);
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [showCreateBusiness, setShowCreateBusiness] = useState(false);
+  const [vaultEntries, setVaultEntries] = useState<Record<string, VaultEntry>>({});
+  const [vaultInputs, setVaultInputs] = useState<Record<string, { apiKey: string; secretKey: string; url?: string }>>({});
+  const [vaultSaving, setVaultSaving] = useState<Record<string, boolean>>({});
+  const [vaultSuccess, setVaultSuccess] = useState<Record<string, boolean>>({});
+  const [vaultError, setVaultError] = useState<Record<string, string>>({});
   const [activeStage, setActiveStage] = React.useState('Analysis');
   const [expandedCard, setExpandedCard] = React.useState<string | null>(null);
 
@@ -393,6 +434,20 @@ export default function WorkspacePage() {
       try {
         const userData = await api.get("/auth/me");
         setUser(userData);
+        // Load business
+        try {
+          const biz = await api.get("/businesses/mine");
+          setBusiness(biz);
+          // Load vault entries for this business
+          const keys: VaultEntry[] = await api.get(`/businesses/${biz.id}/vault`);
+          const mapped: Record<string, VaultEntry> = {};
+          keys.forEach((k) => { mapped[k.key_name] = k; });
+          setVaultEntries(mapped);
+        } catch (bizErr: any) {
+          if (bizErr?.message?.includes('404') || bizErr?.message?.toLowerCase().includes('no business')) {
+            setShowCreateBusiness(true);
+          }
+        }
       } catch (err) {
         console.error("Auth error:", err);
         localStorage.removeItem("token");
@@ -401,6 +456,65 @@ export default function WorkspacePage() {
     };
     checkAuth();
   }, [router]);
+
+  // Called after CreateBusinessModal successfully creates a business
+  const handleBusinessCreated = (biz: Business) => {
+    setBusiness(biz);
+    setShowCreateBusiness(false);
+  };
+
+  // Save an integration API key to the vault
+  const handleVaultSave = async (serviceId: string, serviceName: string) => {
+    if (!business) return;
+    const inputs = vaultInputs[serviceId] || {};
+    if (!inputs.apiKey?.trim()) return;
+
+    setVaultSaving((prev) => ({ ...prev, [serviceId]: true }));
+    setVaultError((prev) => ({ ...prev, [serviceId]: '' }));
+    try {
+      // Save API key
+      const apiKeyName = `${serviceName} API Key`;
+      const secretKeyName = `${serviceName} Secret Key`;
+
+      const saved = await api.post(`/businesses/${business.id}/vault`, {
+        key_name: apiKeyName,
+        key_type: 'integration',
+        key_value: inputs.apiKey.trim(),
+        description: `${serviceName} API Key for ${business.name}`,
+      });
+      setVaultEntries((prev) => ({ ...prev, [apiKeyName]: saved }));
+
+      if (inputs.secretKey?.trim()) {
+        const saved2 = await api.post(`/businesses/${business.id}/vault`, {
+          key_name: secretKeyName,
+          key_type: 'integration',
+          key_value: inputs.secretKey.trim(),
+          description: `${serviceName} Secret Key for ${business.name}`,
+        });
+        setVaultEntries((prev) => ({ ...prev, [secretKeyName]: saved2 }));
+      }
+
+      if (serviceId === 'supabase' && inputs.url?.trim()) {
+        const saved3 = await api.post(`/businesses/${business.id}/vault`, {
+          key_name: 'Supabase URL',
+          key_type: 'integration',
+          key_value: inputs.url.trim(),
+          description: `Supabase project URL for ${business.name}`,
+        });
+        setVaultEntries((prev) => ({ ...prev, ['Supabase URL']: saved3 }));
+      }
+
+      setVaultSuccess((prev) => ({ ...prev, [serviceId]: true }));
+      setTimeout(() => {
+        setVaultSuccess((prev) => ({ ...prev, [serviceId]: false }));
+        setExpandedCard(null);
+      }, 2000);
+    } catch (err: any) {
+      setVaultError((prev) => ({ ...prev, [serviceId]: err.message || 'Failed to save key' }));
+    } finally {
+      setVaultSaving((prev) => ({ ...prev, [serviceId]: false }));
+    }
+  };
 
   const [isChatOpen, setIsChatOpen] = React.useState(false);
   const [isRecording, setIsRecording] = React.useState(false);
@@ -426,8 +540,54 @@ export default function WorkspacePage() {
     }, 1200);
   };
 
+  // Build embed code using real agent_id (or fallback)
+  const agentId = business?.agent_id ?? 'ag_pending_setup';
+  const realEmbedCode = `<!-- AgentDeploy Widget -->
+<script
+  src="https://cdn.agentdeploy.ai/widget/v2.1/loader.js"
+  data-agent-id="${agentId}"
+  data-brand-color="#4d44e3"
+  data-position="bottom-right"
+  async
+></script>`;
+  const realApiCode = `// AgentDeploy API Integration
+const response = await fetch(
+  "https://api.agentdeploy.ai/v1/chat",
+  {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer ag_sk_live_••••••••",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      agent_id: "${agentId}",
+      message: userInput,
+      session_id: sessionId,
+    }),
+  }
+);
+
+const data = await response.json();
+console.log(data.reply);`;
+  const realReactCode = `import { AgentWidget } from '@agentdeploy/react';
+
+export default function App() {
+  return (
+    <AgentWidget
+      agentId="${agentId}"
+      brandColor="#4d44e3"
+      position="bottom-right"
+      greeting="Hi! How can I help you today?"
+      onMessage={(msg) => console.log(msg)}
+    />
+  );
+}`;
+
   return (
     <>
+      {showCreateBusiness && (
+        <CreateBusinessModal onCreated={handleBusinessCreated} />
+      )}
       <FlintChatOverlay
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
@@ -764,6 +924,7 @@ export default function WorkspacePage() {
           0%, 100% { opacity: 1; transform: scale(1);   }
           50%       { opacity: 0.5; transform: scale(0.85); }
         }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ── Canvas Grid ────────────────────────────────── */
         .ws-canvas {
@@ -1952,7 +2113,7 @@ export default function WorkspacePage() {
               <span className="material-symbols-outlined">deployed_code</span>
             </div>
             <div>
-              <div className="ws-brand-name">Studio</div>
+              <div className="ws-brand-name">{business?.name || 'Studio'}</div>
               <div className="ws-brand-version">v1.2.0-beta</div>
             </div>
           </div>
@@ -2205,11 +2366,20 @@ export default function WorkspacePage() {
                     { id: 'zoom', name: 'Zoom', desc: 'Automate meeting scheduling and webinars.', icon: 'https://cdn.worldvectorlogo.com/logos/zoom-communications.svg' },
                     { id: 'stripe', name: 'Stripe', desc: 'Global payment infrastructure for scaling.', icon: 'https://cdn.worldvectorlogo.com/logos/stripe-4.svg' },
                     { id: 'twilio', name: 'Twilio', desc: 'SMS and communication channel management.', icon: 'https://cdn.worldvectorlogo.com/logos/twilio.svg' },
-                  ].map((service) => (
+                  ].map((service) => {
+                    const apiKeyName = `${service.name} API Key`;
+                    const isConnected = !!vaultEntries[apiKeyName];
+                    const isExpanded = expandedCard === service.id;
+                    const inputs = vaultInputs[service.id] || { apiKey: '', secretKey: '', url: '' };
+                    const isSaving = vaultSaving[service.id];
+                    const isSuccess = vaultSuccess[service.id];
+                    const errMsg = vaultError[service.id];
+
+                    return (
                     <div 
                       key={service.id} 
-                      className={`ws-integration-card ${expandedCard === service.id ? 'expanded' : ''}`}
-                      onClick={() => expandedCard !== service.id && setExpandedCard(service.id)}
+                      className={`ws-integration-card ${isExpanded ? 'expanded' : ''}`}
+                      onClick={() => !isExpanded && setExpandedCard(service.id)}
                     >
                       <div className="ws-integration-header">
                         <div className="ws-integration-info">
@@ -2222,43 +2392,92 @@ export default function WorkspacePage() {
                           </div>
                         </div>
                         <div className="ws-integration-status">
-                          {expandedCard === service.id ? (
+                          {isExpanded ? (
                             <button 
                               className="ws-icon-btn" 
                               onClick={(e) => { e.stopPropagation(); setExpandedCard(null); }}
                             >
                               <span className="material-symbols-outlined">close</span>
                             </button>
+                          ) : isConnected ? (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontWeight: 700, fontSize: '11px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                              Connected
+                            </span>
                           ) : (
-                            <span>Disconnected</span>
+                            <span style={{ color: 'var(--ds-outline)', fontSize: '11px', fontWeight: 600 }}>Disconnected</span>
                           )}
                         </div>
                       </div>
 
-                      {expandedCard === service.id && (
+                      {isExpanded && (
                         <div className="ws-integration-content">
+                          {/* Error */}
+                          {errMsg && (
+                            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 'var(--ds-radius-md)', color: '#dc2626', fontSize: '12px', marginTop: '12px' }}>
+                              {errMsg}
+                            </div>
+                          )}
+                          {/* Success */}
+                          {isSuccess && (
+                            <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 'var(--ds-radius-md)', color: '#059669', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '16px', fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                              Keys saved securely to vault!
+                            </div>
+                          )}
                           <div className="ws-form-group">
                             <label className="ws-form-label">{service.name} API Key</label>
-                            <input className="ws-form-input" type="password" placeholder={`Enter your ${service.name} API Key`} />
+                            <input
+                              className="ws-form-input"
+                              type="password"
+                              placeholder={`Enter your ${service.name} API Key`}
+                              value={inputs.apiKey}
+                              onChange={(e) => setVaultInputs(prev => ({ ...prev, [service.id]: { ...inputs, apiKey: e.target.value } }))}
+                            />
                           </div>
                           <div className="ws-form-group">
                             <label className="ws-form-label">{service.name} Secret Key</label>
-                            <input className="ws-form-input" type="password" placeholder={`Enter your ${service.name} Secret Key`} />
+                            <input
+                              className="ws-form-input"
+                              type="password"
+                              placeholder={`Enter your ${service.name} Secret Key`}
+                              value={inputs.secretKey}
+                              onChange={(e) => setVaultInputs(prev => ({ ...prev, [service.id]: { ...inputs, secretKey: e.target.value } }))}
+                            />
                           </div>
                           {service.id === 'supabase' && (
                             <div className="ws-form-group">
                               <label className="ws-form-label">Supabase URL</label>
-                              <input className="ws-form-input" type="text" placeholder="https://xyz.supabase.co" />
+                              <input
+                                className="ws-form-input"
+                                type="text"
+                                placeholder="https://xyz.supabase.co"
+                                value={inputs.url || ''}
+                                onChange={(e) => setVaultInputs(prev => ({ ...prev, [service.id]: { ...inputs, url: e.target.value } }))}
+                              />
                             </div>
                           )}
                           <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                            <button className="ws-deploy-btn" style={{ flex: 1 }}>Connect {service.name}</button>
+                            <button
+                              className="ws-deploy-btn"
+                              style={{ flex: 1, opacity: isSaving ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                              onClick={(e) => { e.stopPropagation(); handleVaultSave(service.id, service.name); }}
+                              disabled={isSaving || !inputs.apiKey?.trim()}
+                            >
+                              {isSaving ? (
+                                <><span style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} /> Saving…</>
+                              ) : isSuccess ? (
+                                <><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span> Saved!</>
+                              ) : (
+                                <>Connect {service.name}</>
+                              )}
+                            </button>
                             <button className="ws-topbar-docs" onClick={() => setExpandedCard(null)}>Cancel</button>
                           </div>
                         </div>
                       )}
                     </div>
-                  ))}
+                  );})}
                 </div>
 
                 <div className="ws-proceed-bar">
@@ -2270,7 +2489,17 @@ export default function WorkspacePage() {
             )}
 
             {activeStage === 'Deployment' && (
-              <DeploymentView setIsChatOpen={setIsChatOpen} sandboxLogs={sandboxLogs} setSandboxLogs={setSandboxLogs} />
+              <DeploymentView
+                setIsChatOpen={setIsChatOpen}
+                sandboxLogs={sandboxLogs}
+                setSandboxLogs={setSandboxLogs}
+                embedCode={realEmbedCode}
+                apiCode={realApiCode}
+                reactCode={realReactCode}
+                agentId={agentId}
+                businessName={business?.name}
+                agentStatus={business?.agent_status}
+              />
             )}
           </div>{/* /content */}
         </div>{/* /main */}

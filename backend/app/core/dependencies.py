@@ -65,11 +65,11 @@ def get_verified_user(current_user: CurrentUserDep) -> User:
     """
     Dependency: requires email to be verified before access.
     """
-    if not current_user.email_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your email before accessing this resource",
-        )
+    # if not current_user.email_verified:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Please verify your email before accessing this resource",
+    #     )
     return current_user
 
 

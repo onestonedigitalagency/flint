@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import InputField from "./InputField";
 import PasswordStrength from "./PasswordStrength";
+import { api } from "@/lib/api";
 
 const RESEND_COOLDOWN = 60;
 const OTP_LENGTH = 6;
@@ -57,11 +58,12 @@ const ForgotPasswordForm = () => {
     setIsLoading(true);
     setError("");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await api.post("/auth/forgot-password", { email: email.trim() });
+      // Backend always returns 200 to prevent email enumeration
       setStep(2);
       setResendTimer(RESEND_COOLDOWN);
-    } catch {
-      setError("Failed to send reset email. Please try again.");
+    } catch (err) {
+      setError(err.message || "Failed to send reset email. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -132,31 +134,13 @@ const ForgotPasswordForm = () => {
     }
   }, []);
 
-  // Step 2: Verify OTP
+  // Step 2: Collect OTP — actual verification happens at Step 3 with reset
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     const code = otp.join("");
     if (code.length !== OTP_LENGTH) return;
-
-    setIsLoading(true);
-    setError("");
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-
-      // Simulate: OTP "123456" is valid, anything else fails
-      if (code === "123456") {
-        setStep(3);
-      } else {
-        setOtpError(true);
-        setError("Invalid verification code. Please try again.");
-        setOtp(Array(OTP_LENGTH).fill(""));
-        otpRefs.current[0]?.focus();
-      }
-    } catch {
-      setError("Verification failed. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
+    // Move to password step; OTP is verified together with new password
+    setStep(3);
   };
 
   // Resend OTP
@@ -166,12 +150,12 @@ const ForgotPasswordForm = () => {
     setError("");
     setOtpError(false);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await api.post("/auth/forgot-password", { email: email.trim() });
       setOtp(Array(OTP_LENGTH).fill(""));
       setResendTimer(RESEND_COOLDOWN);
       otpRefs.current[0]?.focus();
-    } catch {
-      setError("Failed to resend code.");
+    } catch (err) {
+      setError(err.message || "Failed to resend code.");
     } finally {
       setIsLoading(false);
     }
@@ -192,10 +176,21 @@ const ForgotPasswordForm = () => {
     setIsLoading(true);
     setError("");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1800));
+      await api.post("/auth/reset-password", {
+        email: email.trim(),
+        otp: otp.join(""),
+        new_password: newPassword,
+      });
       setStep(4);
-    } catch {
-      setError("Failed to reset password. Please try again.");
+    } catch (err) {
+      // If OTP was wrong, push back to OTP step
+      const msg = err.message || "Failed to reset password. Please try again.";
+      if (msg.toLowerCase().includes("otp") || msg.toLowerCase().includes("invalid")) {
+        setOtpError(true);
+        setOtp(Array(OTP_LENGTH).fill(""));
+        setStep(2);
+      }
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
