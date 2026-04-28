@@ -1,6 +1,8 @@
 from sqlmodel import Session, select
 from app.core.db import engine, init_db
 from app.models.business import Business
+from app.models.user import User
+from app.services.auth_service import get_password_hash
 import uuid
 
 def seed_data():
@@ -8,25 +10,42 @@ def seed_data():
     init_db()
     
     with Session(engine) as session:
-        # Check if we already have a business
-        existing = session.exec(select(Business)).first()
-        if existing:
-            print(f"Database already seeded. Existing business ID: {existing.id}")
+        # 1. Create a test user
+        existing_user = session.exec(select(User).where(User.email == "test@flint.digital")).first()
+        if not existing_user:
+            print("Creating test user...")
+            existing_user = User(
+                email="test@flint.digital",
+                full_name="Test Owner",
+                hashed_password=get_password_hash("password123"),
+                email_verified=True
+            )
+            session.add(existing_user)
+            session.commit()
+            session.refresh(existing_user)
+        else:
+            print(f"Test user already exists: {existing_user.id}")
+
+        # 2. Check if we already have a business for this user
+        existing_business = session.exec(select(Business).where(Business.owner_id == existing_user.id)).first()
+        if existing_business:
+            print(f"Database already seeded. Existing business ID: {existing_business.id}")
             return
 
         print("Seeding test business...")
         test_business = Business(
+            owner_id=existing_user.id,
             name="Flint Digital",
             description="A premium AI-first digital agency focused on seamless integrations.",
-            plans_data=[
-                {"name": "Starter", "price": "$99/mo", "features": ["Text AI", "Email Support"]},
-                {"name": "Pro", "price": "$299/mo", "features": ["Voice AI", "24/7 Support", "Custom Branding"]}
-            ],
-            faq_data=[
-                {"q": "How do I integrate the widget?", "a": "Copy the single-line script from your dashboard settings."},
-                {"q": "Does it support voice?", "a": "Yes, the Pro plan includes real-time voice capabilities."}
-            ],
-            ai_config={"model": "gemini", "tone": "professional"}
+            agent_id="flint-agent-" + str(uuid.uuid4())[:8],
+            ai_config={
+                "provider": "google",
+                "model": "gemini-1.5-flash",
+                "api_key_source": "platform"
+            },
+            onboarding_step=9,
+            onboarding_completed=True,
+            agent_status="sandbox"
         )
         
         session.add(test_business)
@@ -34,8 +53,10 @@ def seed_data():
         session.refresh(test_business)
         
         print(f"Successfully seeded!")
+        print(f"USER_EMAIL: test@flint.digital")
+        print(f"PASSWORD: password123")
         print(f"BUSINESS_ID: {test_business.id}")
-        print("Use this ID in your frontend requests.")
+        print(f"AGENT_ID: {test_business.agent_id}")
 
 if __name__ == "__main__":
     seed_data()

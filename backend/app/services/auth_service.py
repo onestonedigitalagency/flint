@@ -1,43 +1,66 @@
-import os
+"""
+Updated auth service — bcrypt hashing, JWT with refresh tokens,
+email verification token generation.
+"""
 import hashlib
+import os
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+
+from jose import jwt
 from passlib.context import CryptContext
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-development")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+ALGORITHM = settings.ALGORITHM
+SECRET_KEY = settings.SECRET_KEY
+
+
 def get_password_hash(password: str) -> str:
-    """
-    Hashes the password using Bcrypt. 
-    We pre-hash with SHA256 to avoid Bcrypt's 72-character limit.
-    """
-    pw_bytes = password.encode('utf-8')
+    """Hash password with bcrypt (pre-hashed via SHA-256 to bypass bcrypt 72-char limit)."""
+    pw_bytes = password.encode("utf-8")
     pw_hash = hashlib.sha256(pw_bytes).hexdigest()
     return pwd_context.hash(pw_hash)
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verifies the password by pre-hashing and comparing with the stored hash.
-    """
-    pw_bytes = plain_password.encode('utf-8')
+    """Verify a password against its bcrypt hash."""
+    pw_bytes = plain_password.encode("utf-8")
     pw_hash = hashlib.sha256(pw_bytes).hexdigest()
     return pwd_context.verify(pw_hash, hashed_password)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a short-lived access JWT."""
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    to_encode.update({"exp": expire, "type": "access"})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(data: dict) -> str:
+    """Create a long-lived refresh JWT."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "type": "refresh"})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def hash_token(token: str) -> str:
+    """SHA-256 hash a token for safe DB storage."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def generate_otp() -> str:
+    """Generate a cryptographically secure 6-digit OTP."""
+    return f"{secrets.randbelow(900000) + 100000}"
+
+
+def generate_verification_token() -> str:
+    """Generate a URL-safe random token for email verification."""
+    return secrets.token_urlsafe(32)
