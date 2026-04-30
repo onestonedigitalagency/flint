@@ -47,6 +47,7 @@ class Business(SQLModel, table=True):
     # ── Uploaded Files ────────────────────────────────────────────
     # List of {"filename": str, "storage_url": str, "file_type": str}
     uploaded_files: list = Field(default=[], sa_column=Column(JSON))
+    knowledge_base: Optional[str] = Field(default=None, sa_column=Column(Text))
 
     # ── AI Model Config (pluggable — never hardcoded) ─────────────
     # {"provider": "google", "model": "gemini-1.5-flash",
@@ -92,6 +93,7 @@ class BusinessRead(SQLModel):
     integration_mode: Optional[str] = None
     agent_status: str
     ai_config: dict
+    knowledge_base: Optional[str] = None
     created_at: datetime
 
 
@@ -105,3 +107,4 @@ class BusinessUpdate(SQLModel):
     bot_color: Optional[str] = None
     ai_config: Optional[dict] = None
     agent_status: Optional[str] = None
+    knowledge_base: Optional[str] = None

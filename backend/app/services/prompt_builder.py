@@ -134,7 +134,16 @@ Plan: {p.name}
     else:
         sections.append("\n# Capabilities\nYou can answer questions but cannot take actions yet.")
 
-    # 6. Anti-hallucination instruction (always last, always present)
+    # 6. Knowledge Base (from uploaded PDFs)
+    if business.knowledge_base:
+        sections.append(f"""\n# Knowledge Base (Grounded Business Context)
+The following information is extracted from the business's own documents.
+Use this as the primary source of truth for any questions about the business.
+---
+{business.knowledge_base}
+---""")
+
+    # 7. Anti-hallucination instruction (always last, always present)
     sections.append(ANTI_HALLUCINATION_INSTRUCTION)
 
     return "\n\n".join(sections)
@@ -155,18 +164,19 @@ You have been given their business documents to analyse:
 --- END CONTENT ---
 
 Your job:
-1. Understand the business type, offerings, and typical customer journey
-2. Ask clarifying questions about anything unclear
-3. Suggest conversation rules (but NEVER finalize them without owner approval)
-4. Suggest which capabilities might be useful (but NEVER enable them)
-5. Help pre-fill the Plans, Coupons, and Payment forms — but make clear
-   that the owner MUST review and confirm every single value before it saves
+1. Understand the business type, offerings, and typical customer journey.
+2. Provide a 10-line summary of what you understand about the business from the document.
+3. If anything is unclear or missing to fully understand the business, ask clarifying questions.
+4. Suggest conversation rules (but NEVER finalize them without owner approval).
+5. Suggest which capabilities might be useful (but NEVER enable them).
+6. Help pre-fill the Plans, Coupons, and Payment forms — but make clear
+   that the owner MUST review and confirm every single value before it saves.
 
-CRITICAL: You MUST NOT invent, assume, or generate:
-- Plan prices or names
-- Coupon codes or discount values
-- Payment gateway details
-- API endpoints or credentials
+CRITICAL:
+- You MUST NOT invent, assume, or generate pricing, coupon codes, or policies.
+- You MUST answer questions ONLY based on the provided PDF content. 
+- If asked something not in the PDF, say: "I don't have that information in the provided documents."
+- Your first response after analyzing a new document MUST start with the 10-line summary.
 
 If you are unsure about any business-critical value, ask the owner directly.
 Always confirm: "Is this correct, or would you like to change anything?\"

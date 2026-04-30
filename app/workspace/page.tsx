@@ -423,6 +423,11 @@ export default function WorkspacePage() {
   const [vaultError, setVaultError] = useState<Record<string, string>>({});
   const [activeStage, setActiveStage] = React.useState('Analysis');
   const [expandedCard, setExpandedCard] = React.useState<string | null>(null);
+  
+  // Analysis Stage State
+  const [analysisSummary, setAnalysisSummary] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [knowledgeFiles, setKnowledgeFiles] = useState<{ name: string; status: string }[]>([]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -523,21 +528,61 @@ export default function WorkspacePage() {
   ]);
   const [sandboxLogs, setSandboxLogs] = React.useState(SANDBOX_LOGS.slice(0, 2));
 
-  const handleSendMessage = (text: string) => {
+  const handleSendMessage = async (text: string) => {
+    if (!business) return;
     const userMsg: Message = { id: Date.now().toString(), sender: "user", text };
     setChatMessages((prev) => [...prev, userMsg]);
-    setTimeout(() => {
-      const aiMsg: Message = { 
-        id: (Date.now() + 1).toString(), sender: "ai", 
-        text: "We offer three plans:\n• Starter — $29/mo\n• Professional — $79/mo\n• Enterprise — Custom pricing\n\nWould you like to know more about any specific plan?" 
-      };
-      setChatMessages((prev) => [...prev, aiMsg]);
+    
+    // Create a temporary AI message for streaming
+    const aiMsgId = (Date.now() + 1).toString();
+    setChatMessages((prev) => [...prev, { id: aiMsgId, sender: "ai", text: "" }]);
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const response = await fetch(`${baseUrl}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: business.agent_id,
+          messages: [...chatMessages, userMsg].map(m => ({ role: m.sender, content: m.text }))
+        })
+      });
+
+      if (!response.body) return;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.replace("data: ", "");
+            if (data === "[DONE]") break;
+            if (data.startsWith("[ERROR]")) {
+               console.error("Chat error:", data);
+               break;
+            }
+            accumulated += data;
+            setChatMessages((prev) => 
+              prev.map(m => m.id === aiMsgId ? { ...m, text: accumulated } : m)
+            );
+          }
+        }
+      }
+
       setSandboxLogs(prev => [
         ...prev, 
         { time: new Date().toLocaleTimeString('en-US', { hour12: false }), type: "info", msg: `User: "${text}"` },
-        { time: new Date().toLocaleTimeString('en-US', { hour12: false }), type: "success", msg: "Agent: Retrieved 3 plans from knowledge base" }
+        { time: new Date().toLocaleTimeString('en-US', { hour12: false }), type: "success", msg: "Agent: Response streamed successfully" }
       ]);
-    }, 1200);
+    } catch (err) {
+      console.error("Chat streaming error:", err);
+    }
   };
 
   // Build embed code using real agent_id (or fallback)
@@ -582,6 +627,40 @@ export default function App() {
     />
   );
 }`;
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !business) return;
+
+    setIsAnalyzing(true);
+    setKnowledgeFiles([{ name: file.name, status: 'Analyzing...' }]);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await api.post(`/businesses/${business.id}/analyze-pdf`, formData);
+      setAnalysisSummary(response.summary);
+      setKnowledgeFiles([{ name: file.name, status: 'Indexed' }]);
+      
+      // Update chat with the summary
+      const aiMsg: Message = { 
+        id: Date.now().toString(), 
+        sender: "ai", 
+        text: response.summary 
+      };
+      setChatMessages((prev) => [...prev, aiMsg]);
+      
+      // Update business onboarding step
+      setBusiness(prev => prev ? { ...prev, onboarding_step: response.onboarding_step } : null);
+      
+    } catch (err: any) {
+      console.error("PDF Analysis error:", err.message || err);
+      setKnowledgeFiles([{ name: file.name, status: 'Error' }]);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   return (
     <>
@@ -2220,32 +2299,48 @@ export default function App() {
                     </div>
 
                     {/* Drop zone */}
-                    <div className="ws-drop-zone">
+                    <div className="ws-drop-zone" style={{ position: 'relative' }}>
+                      <input 
+                        type="file" 
+                        accept=".pdf" 
+                        onChange={handleFileUpload} 
+                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                        disabled={isAnalyzing}
+                      />
                       <div className="ws-drop-icon-wrap">
-                        <span className="material-symbols-outlined">upload_file</span>
+                        <span className="material-symbols-outlined">{isAnalyzing ? 'sync' : 'upload_file'}</span>
                       </div>
-                      <div className="ws-drop-title">Drop source files</div>
-                      <div className="ws-drop-sub">PDF, TXT, or JSON files up to 50 MB</div>
-                      <button className="ws-drop-browse">Browse local storage</button>
+                      <div className="ws-drop-title">{isAnalyzing ? 'Analyzing Document...' : 'Drop source files'}</div>
+                      <div className="ws-drop-sub">PDF files up to 50 MB</div>
+                      <button className="ws-drop-browse" disabled={isAnalyzing}>
+                        {isAnalyzing ? 'Processing...' : 'Browse local storage'}
+                      </button>
                     </div>
 
                     {/* File list */}
                     <div className="ws-file-list">
                       <div className="ws-file-list-label">Current Indexing</div>
-                      {INDEXED_FILES.map((f) => (
+                      {knowledgeFiles.length > 0 ? knowledgeFiles.map((f) => (
                         <div key={f.name} className="ws-file-item">
                           <div className="ws-file-left">
-                            <span className="material-symbols-outlined">{f.icon}</span>
+                            <span className="material-symbols-outlined">description</span>
                             <span className="ws-file-name">{f.name}</span>
                           </div>
                           <span
                             className="ws-file-badge"
-                            style={{ background: f.statusBg, color: f.statusColor }}
+                            style={{ 
+                              background: f.status === 'Indexed' ? '#dcfce7' : f.status === 'Error' ? '#fee2e2' : '#fef9c3', 
+                              color: f.status === 'Indexed' ? '#166534' : f.status === 'Error' ? '#991b1b' : '#854d0e' 
+                            }}
                           >
                             {f.status}
                           </span>
                         </div>
-                      ))}
+                      )) : (
+                        <div className="ws-file-empty" style={{ textAlign: 'center', padding: '20px', color: 'var(--ds-outline-var)' }}>
+                          No files indexed yet.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2275,44 +2370,37 @@ export default function App() {
                     </div>
 
                     {/* Messages */}
-                    <div className="ws-messages">
-                      <div className="ws-msg-ai">
-                        <div className="ws-msg-ai-avatar">
-                          <span className="material-symbols-outlined">auto_awesome</span>
+                    <div className="ws-messages" id="architect-chat-messages">
+                      {chatMessages.map((msg) => (
+                        <div key={msg.id} className={msg.sender === 'ai' ? 'ws-msg-ai' : 'ws-msg-user'}>
+                          {msg.sender === 'ai' ? (
+                            <>
+                              <div className="ws-msg-ai-avatar">
+                                <span className="material-symbols-outlined">auto_awesome</span>
+                              </div>
+                              <div>
+                                <div className="ws-msg-ai-bubble" dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+                              </div>
+                            </>
+                          ) : (
+                            <div className="ws-msg-user-inner">
+                              <div className="ws-msg-user-bubble">{msg.text}</div>
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <div className="ws-msg-ai-bubble">
-                            Hello! I've analyzed your project directory. It looks like you're building a{" "}
-                            <strong>Node.js microservice architecture</strong>. I've identified{" "}
-                            <strong>4 potential deployment targets</strong>. Should we prioritize the{" "}
-                            <strong>Staging environment</strong> first?
+                      ))}
+                      {isAnalyzing && (
+                        <div className="ws-msg-typing">
+                          <div className="ws-msg-ai-avatar">
+                            <span className="material-symbols-outlined">auto_awesome</span>
                           </div>
-                          <div className="ws-suggestions">
-                            <button className="ws-suggestion-chip">Yes, start with Staging</button>
-                            <button className="ws-suggestion-chip">Let&apos;s do Production</button>
-                            <button className="ws-suggestion-chip">Help me choose</button>
+                          <div className="ws-typing-bubble">
+                            <span className="ws-typing-dot" />
+                            <span className="ws-typing-dot" />
+                            <span className="ws-typing-dot" />
                           </div>
                         </div>
-                      </div>
-                      <div className="ws-msg-user">
-                        <div className="ws-msg-user-inner">
-                          <div className="ws-msg-user-bubble">
-                            Let&apos;s go with Staging. Also, I need to make sure the agent has access to
-                            the PostgreSQL schema I just uploaded on the left.
-                          </div>
-                          <div className="ws-msg-user-time">Just now</div>
-                        </div>
-                      </div>
-                      <div className="ws-msg-typing">
-                        <div className="ws-msg-ai-avatar">
-                          <span className="material-symbols-outlined">auto_awesome</span>
-                        </div>
-                        <div className="ws-typing-bubble">
-                          <span className="ws-typing-dot" />
-                          <span className="ws-typing-dot" />
-                          <span className="ws-typing-dot" />
-                        </div>
-                      </div>
+                      )}
                     </div>
 
                     {/* Input */}
@@ -2321,8 +2409,21 @@ export default function App() {
                         <button className="ws-attach-btn">
                           <span className="material-symbols-outlined">attach_file</span>
                         </button>
-                        <input placeholder="Message Architect…" type="text" />
-                        <button className="ws-send-btn">
+                        <input 
+                          placeholder="Message Architect…" 
+                          type="text" 
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSendMessage(e.currentTarget.value);
+                              e.currentTarget.value = '';
+                            }
+                          }}
+                        />
+                        <button className="ws-send-btn" onClick={(e) => {
+                          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                          handleSendMessage(input.value);
+                          input.value = '';
+                        }}>
                           <span className="material-symbols-outlined">arrow_upward</span>
                         </button>
                       </div>
